@@ -8,8 +8,9 @@ terraform {
     }
   }
 
-  # Local state on purpose: this stack creates the state bucket.
-  # Migrate later with `terraform init -migrate-state` to the bucket it outputs.
+  # State lives in the bucket this stack creates (bootstrap: docs/architecture.md, Terraform stacks).
+  # terraform init -backend-config=backends/<env>.hcl
+  backend "s3" {}
 }
 
 # Credentials: an Identity Center profile for the target account (AWS_PROFILE=<env>).

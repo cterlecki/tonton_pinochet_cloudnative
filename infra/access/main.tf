@@ -9,12 +9,6 @@ resource "aws_s3_bucket" "tfstate" {
 
   lifecycle {
     prevent_destroy = true
-
-    # Local state: one workspace per env, so dev and prd never share a state file.
-    precondition {
-      condition     = terraform.workspace == var.environment
-      error_message = "Run `terraform workspace select ${var.environment}` first."
-    }
   }
 }
 
