@@ -15,3 +15,8 @@ terraform {
 provider "aws" {
   region = var.region
 }
+
+provider "aws" {
+  alias  = "sso"
+  region = var.sso_region
+}

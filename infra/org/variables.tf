@@ -29,3 +29,19 @@ variable "region" {
   type        = string
   default     = "eu-west-3"
 }
+
+variable "sso_region" {
+  description = "Region where IAM Identity Center is enabled."
+  type        = string
+  default     = "eu-west-1"
+}
+
+variable "team_emails" {
+  description = "Team members signing in through Identity Center. Format firstname.lastname@domain (username = local part). Keep in gitignored terraform.tfvars."
+  type        = set(string)
+
+  validation {
+    condition     = alltrue([for e in var.team_emails : can(regex("^[a-z]+\\.[a-z-]+@[^@]+$", e))])
+    error_message = "Each email must look like firstname.lastname@domain, lowercase."
+  }
+}
