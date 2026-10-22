@@ -1,0 +1,26 @@
+name: aws-identity
+
+# Smoke test for keyless auth: a job in a GitHub environment assumes that account's github-deployer role.
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: Target environment
+        type: choice
+        options: [dev, prd]
+        default: dev
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  whoami:
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environment }}
+    steps:
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ inputs.environment == 'prd' && vars.AWS_ROLE_ARN_PRD || vars.AWS_ROLE_ARN_DEV }}
+          aws-region: ${{ vars.AWS_REGION }}
+      - run: aws sts get-caller-identity
