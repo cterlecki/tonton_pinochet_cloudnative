@@ -2,7 +2,7 @@ locals {
   name = "${var.team}-cloudnative-${var.environment}"
 }
 
-# --- Network: VPC, public + private subnets, one NAT gateway ---
+# Network: VPC, public + private subnets, one NAT gateway
 
 module "vpc" {
   source  = "terraform-aws-modules/vpc/aws"
@@ -17,7 +17,7 @@ module "vpc" {
   # /24 public subnets from the upper half: only the NAT and load balancers live here.
   public_subnets = [for i, _ in var.azs : cidrsubnet(var.vpc_cidr, 8, 128 + i)]
 
-  # One NAT for all AZs: cost trade-off, not AZ-redundant.
+  # One NAT for all AZs.
   enable_nat_gateway = true
   single_nat_gateway = true
 
@@ -26,7 +26,7 @@ module "vpc" {
   private_subnet_tags = { "kubernetes.io/role/internal-elb" = 1 }
 }
 
-# --- Gateway endpoints: S3 / DynamoDB traffic stays off the NAT (free, no per-GB charge) ---
+# Gateway endpoints: S3 / DynamoDB traffic stays off the NAT (free, no per-GB charge)
 
 resource "aws_vpc_endpoint" "gateway" {
   for_each = toset(["s3", "dynamodb"])
