@@ -7,3 +7,8 @@ output "access_role_arns" {
   description = "Role the other stacks assume in each member account."
   value       = { for env, acct in aws_organizations_account.env : env => "arn:aws:iam::${acct.id}:role/OrganizationAccountAccessRole" }
 }
+
+output "sso_start_url" {
+  description = "AWS access portal URL for `aws configure sso`."
+  value       = "https://${local.identity_store_id}.awsapps.com/start"
+}

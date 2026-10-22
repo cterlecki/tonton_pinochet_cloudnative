@@ -35,3 +35,6 @@ __pycache__/
 
 # Local bootstrap values
 terraform.tfvars
+
+# Claude Code local settings
+.claude/settings.local.json
