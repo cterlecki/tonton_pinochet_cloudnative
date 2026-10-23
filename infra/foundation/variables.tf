@@ -38,3 +38,9 @@ variable "azs" {
     error_message = "EKS needs at least 2 availability zones."
   }
 }
+
+variable "cluster_endpoint_public_access_cidrs" {
+  description = "CIDRs allowed to reach the EKS public API endpoint. GitHub-hosted runners run foundation apply with dynamic IPs, so the default is open; access stays gated by IAM."
+  type        = list(string)
+  default     = ["0.0.0.0/0"]
+}
