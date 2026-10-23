@@ -1,0 +1,2 @@
+mkdocs-material==9.7.7
+mkdocs-drawio==1.16.3

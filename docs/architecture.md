@@ -20,67 +20,9 @@ Environments: AWS Organizations with a management (payer) account and two member
 
 ## 2. Big picture
 
-```mermaid
-flowchart LR
-  subgraph Users
-    D[Discord client]
-    W[Browser]
-  end
-  subgraph GitHub
-    GH[Repo + Actions]
-  end
+![Architecture](architecture.drawio)
 
-  D -- HTTPS POST interaction --> DIS[Discord API]
-  DIS -- HTTPS + Ed25519 headers --> GW
-  W -- HTTPS static --> CF[CloudFront + S3 site]
-  W -- HTTPS + session JWT --> GW[API Gateway HTTP API]
-  W <-- WSS subscribe / tile deltas --> WS[API Gateway WebSocket API]
-
-  subgraph Serverless app [Account teamX-cloudnative-ENV]
-    AZ[jwt-authorizer] -.-> GW
-    AZ -.-> WS
-    GW -- Lambda proxy integration --> P1[discord-proxy]
-    GW --> P2[draw-proxy]
-    GW --> P3[auth-proxy]
-    GW --> TR[tiles-reader]
-    WS --> WC[ws-connections]
-    P1 -- SendMessage --> Q1[[discord-command]]
-    P2 -- SendMessage --> Q2[[pixel-draw]]
-    Q1 --> CW[command-worker]
-    CW --> Q2
-    CW --> Q3[[canvas-render]]
-    CW --> Q4[[snapshot-requested]]
-    CW --> Q5[[grid-clear]]
-    CW --> Q6[[discord-reply]]
-    Q2 --> DW[draw-worker]
-    Q3 --> RW[render-worker]
-    Q4 --> SW[snapshot-worker]
-    Q5 --> CLW[clear-worker]
-    Q6 --> DN[discord-notifier]
-    DW --> DDB[(DynamoDB)]
-    DW --> Q6
-    CLW --> DDB
-    RW --> DDB
-    SW --> DDB
-    TR --> DDB
-    WC --> DDB
-    SW -- PutObject PNG --> B[(S3 snapshots, private)]
-    B -- ObjectCreated --> SN[snapshot-notifier]
-    SN --> Q6
-    DDB -- Streams: tiles --> BC[broadcaster]
-    BC -- PostToConnection --> WS
-    P3 -. sync code exchange .-> DIS
-  end
-
-  RW -- followup with PNG --> DIS
-  DN -- PATCH webhook --> DIS
-
-  subgraph Foundation [same account]
-    EKS[EKS: system node group + runners node group 0..N] --> ARC[ARC runner scale set]
-  end
-  GH -- OIDC AssumeRoleWithWebIdentity --> AWS[(AWS APIs)]
-  ARC -- long-poll jobs --> GH
-```
+Source: [architecture.drawio](architecture.drawio), edit with diagrams.net.
 
 Every SQS queue has a dead-letter queue `<queue>-dlq` (`maxReceiveCount` 5, visibility timeout = 6 × function timeout).
 
@@ -104,6 +46,7 @@ Every SQS queue has a dead-letter queue `<queue>-dlq` (`maxReceiveCount` 5, visi
 | org | `infra/org` | **No** (`prevent_destroy`) | AWS Organization (IAM Identity Center enabled), one member account per env (`<team>-cloudnative-<env>`, email `<local>+<env>@<domain>`); IAM Identity Center users (from `team_emails`, gitignored), `team` group with the `AdministratorAccess` permission set on all accounts; instructor user (`instructor_email`, gitignored) with the `InstructorReadOnly` permission set (`ReadOnlyAccess` + `AWSBillingReadOnlyAccess`) on dev and prd only; outputs account ids, `OrganizationAccountAccessRole` ARNs and the SSO start URL |
 | access | `infra/access` | **No** | One state per env (`-backend-config=backends/<env>.hcl`; the bucket lives in that account, so the wrong `AWS_PROFILE` cannot reach it). tfstate bucket `<team>-cloudnative-<env>-tfstate`, GitHub OIDC provider, `github-deployer` role (AdministratorAccess for now), monthly budget 50/90/100 % to `budget_emails` (gitignored). GitHub collaborators (incl. `Kloox`) managed in `infra/github` |
 | foundation | `infra/foundation` | Yes | VPC, NAT, EKS, node groups, Cluster Autoscaler, ARC Helm releases, runner secret |
+| docs | `infra/docs` | **No** | Dev account only, state key `docs/terraform.tfstate`, applied by hand. Private S3 bucket + CloudFront with OAC hosting this documentation site (MkDocs Material, published by `docs.yml`); output `url` |
 | serverless | `infra/serverless` | Yes | Secrets (entries only, values set out of band), SQS, Lambdas, HTTP + WebSocket APIs, DynamoDB, buckets, CloudFront site, CloudWatch dashboards + alarms |
 
 Account targeting: every stack except `org` runs in a member account. Locally the provider assumes `arn:aws:iam::<account_id>:role/OrganizationAccountAccessRole` from the management account; in CI it uses the deployer role created by `access`.
@@ -213,9 +156,13 @@ Clear: `clear-worker` bumps `meta.epoch` first; `broadcaster` pushes a `clear` m
 | Workflow | Trigger | Jobs |
 |---|---|---|
 | `ci.yml` | `pull_request` to `dev` and `main` | `terraform fmt -check -recursive`, `validate` (each stack), `plan` matrix {foundation, serverless} × {dev, prd} in the env's GitHub environment (prd legs wait for a reviewer), plan in the job summary; app lint + unit tests + build once `app/` has code |
-| `release.yml` | signed tag `vX.Y.Z` pushed by a `RELEASE_ACTORS` member and pointing at the tip of `main` | per env a `plan` job (plan in the run summary), then an `apply` job that re-plans and refuses to apply if the changes differ from the reviewed plan; dev then prd (prd plan and apply each wait for a reviewer, 2 approvals); stacks `foundation` → `serverless` → `monitoring` (skipped until it exists), all on `ubuntu-latest`; build function zips + frontend sync to the env's S3 bucket + CloudFront invalidation come once `app/` has code |
-| `destroy.yml` | `workflow_dispatch` (input `env`, type-to-confirm) | destroy `serverless` then `foundation` for that env |
-| `load-runners.yml` | `workflow_dispatch` (input `jobs`) | matrix of N jobs that `sleep` to force runner node scale-up (defense demo) |
+| `release.yml` | signed tag `vX.Y.Z` pushed by a `RELEASE_ACTORS` member and pointing at the tip of `main` | reusable `deploy.yml` (`.github/scripts/plan-stacks.sh` plans the stacks), per env a `plan` job (plan in the run summary), then an `apply` job that re-plans and refuses to apply if the changes differ from the reviewed plan; dev then prd (prd plan and apply each wait for a reviewer, 2 approvals); stacks `foundation` → `serverless` → `monitoring` (skipped until it exists), all on `ubuntu-latest`; build function zips + frontend sync to the env's S3 bucket + CloudFront invalidation come once `app/` has code |
+| `docs.yml` | `push` to `main` touching `docs/**`, `mkdocs.yml` or `requirements-docs.txt`, plus `workflow_dispatch` | `mkdocs build --strict`, `aws s3 sync --delete` to the docs bucket, CloudFront invalidation; OIDC in environment `dev` |
+| `runner-smoke.yml` | `workflow_dispatch` (input `jobs`), `pull_request` touching the workflow | N jobs that `sleep` on the ARC runners to watch runner and node scale-up |
+| `aws-identity.yml` | `workflow_dispatch` (input `environment`) | assume the env's `github-deployer` role through OIDC and print the caller identity |
+| `main-source.yml` | `pull_request` to `main` | check that the PR comes from `dev` |
+| `destroy.yml` (planned) | `workflow_dispatch` (input `env`, type-to-confirm) | destroy `serverless` then `foundation` for that env |
+| `load-runners.yml` (planned) | `workflow_dispatch` (input `jobs`) | matrix of N jobs that `sleep` to force runner node scale-up (defense demo) |
 
 Every job authenticates with `aws-actions/configure-aws-credentials` (`role-to-assume: ${{ vars.AWS_ROLE_ARN_<ENV> }}`, `permissions: id-token: write`).
 

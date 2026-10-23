@@ -38,3 +38,6 @@ terraform.tfvars
 
 # Claude Code local settings
 .claude/settings.local.json
+
+# mkdocs build output
+site/
