@@ -11,8 +11,8 @@ data "aws_iam_roles" "sso_admin" {
 }
 
 locals {
-  # EKS rejects SSO role ARNs that include the path, so rebuild the ARN without it.
-  sso_admin_arn = "arn:aws:iam::${var.account_id}:role/${one(data.aws_iam_roles.sso_admin.names)}"
+  # Access entries take the full ARN with its path (stripping it is only for the aws-auth ConfigMap).
+  sso_admin_arn = one(data.aws_iam_roles.sso_admin.arns)
 
   cluster_admin = {
     type         = "STANDARD"
