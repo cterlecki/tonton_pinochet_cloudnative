@@ -1,5 +1,8 @@
 # Section: Actions Runner Controller (self-hosted runners)
 
+# Everything in the cluster also depends on module.vpc: on destroy it goes before the NAT and routes,
+# so the controller keeps egress to deregister the scale set from GitHub (#62).
+
 # Put by hand in Secrets Manager (plain PEM) before apply.
 data "aws_secretsmanager_secret_version" "arc_github_app_key" {
   secret_id = "arc/github-app-private-key"
@@ -7,12 +10,12 @@ data "aws_secretsmanager_secret_version" "arc_github_app_key" {
 
 resource "kubernetes_namespace_v1" "arc_systems" {
   metadata { name = "arc-systems" }
-  depends_on = [module.eks]
+  depends_on = [module.eks, module.vpc]
 }
 
 resource "kubernetes_namespace_v1" "arc_runners" {
   metadata { name = "arc-runners" }
-  depends_on = [module.eks]
+  depends_on = [module.eks, module.vpc]
 }
 
 # The key lands in Terraform state (accepted, see docs/PLAN.md risks).
@@ -41,7 +44,7 @@ resource "helm_release" "arc_controller" {
     serviceAccount = { name = local.arc_controller_sa }
   })]
 
-  depends_on = [module.eks]
+  depends_on = [module.eks, module.vpc]
 }
 
 locals {

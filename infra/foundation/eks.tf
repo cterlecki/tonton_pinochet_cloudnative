@@ -174,5 +174,5 @@ resource "helm_release" "cluster_autoscaler" {
     }
   })]
 
-  depends_on = [module.eks, module.cluster_autoscaler_pod_identity]
+  depends_on = [module.eks, module.vpc, module.cluster_autoscaler_pod_identity]
 }
