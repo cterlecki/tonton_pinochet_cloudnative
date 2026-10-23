@@ -6,7 +6,7 @@
 |------|---------|
 | `.github/workflows/` | CI/CD pipelines (C03) |
 | `infra/org/` | AWS Organization + dev/prd accounts (bootstrap, applied once from the management account) |
-| `infra/access/` | Human + instructor access (separate stack) |
+| `infra/access/` | State bucket, CI deployer role, budget (separate stack) |
 | `infra/github/` | Repo settings, `main` protection, environments, Actions variables, collaborators (applied by hand by a repo admin) |
 | `infra/foundation/` | Network, IAM, cluster, runners (C02, C04) |
 | `infra/foundation/backends/` | Per-environment backend config |

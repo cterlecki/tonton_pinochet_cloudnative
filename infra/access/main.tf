@@ -82,22 +82,6 @@ resource "aws_iam_role_policy_attachment" "deployer_admin" {
   policy_arn = "arn:aws:iam::aws:policy/AdministratorAccess"
 }
 
-# --- Instructor access (credentials created by hand so they never reach state) ---
-
-resource "aws_iam_user" "instructor" {
-  name = var.instructor_user_name
-}
-
-resource "aws_iam_user_policy_attachment" "instructor" {
-  for_each = toset([
-    "arn:aws:iam::aws:policy/ReadOnlyAccess",
-    "arn:aws:iam::aws:policy/AWSBillingReadOnlyAccess",
-  ])
-
-  user       = aws_iam_user.instructor.name
-  policy_arn = each.value
-}
-
 # --- Budget ---
 
 resource "aws_budgets_budget" "monthly" {

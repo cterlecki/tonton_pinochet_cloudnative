@@ -46,12 +46,6 @@ variable "github_repo_id" {
   type        = string
 }
 
-variable "instructor_user_name" {
-  description = "IAM user name for the instructor."
-  type        = string
-  default     = "jeremie.jaouen"
-}
-
 variable "budget_limit_usd" {
   description = "Monthly budget for this account, in USD."
   type        = number

@@ -16,7 +16,7 @@ The defense diagram (draw.io, official AWS icons) is generated from the diagrams
 | Runners cluster | EKS, managed node groups, Cluster Autoscaler | Control plane is billed hourly (no free tier): destroy dev foundation when idle |
 | Monitoring | CloudWatch (metrics, Logs Insights, dashboards, alarms), Container Insights, X-Ray | No monitoring stack to host |
 
-Environments: AWS Organizations with a management (payer) account and two member accounts `<team>-cloudnative-dev` and `<team>-cloudnative-prd`, created by the `infra/org` stack from one `team` variable; same code, different `*.tfvars`. Only the management account is created by hand (sign-up, card, root MFA, free credits). Team members sign in through IAM Identity Center (permission set on both accounts). Region: one region for everything (e.g. `eu-west-3`).
+Environments: AWS Organizations with a management (payer) account and two member accounts `<team>-cloudnative-dev` and `<team>-cloudnative-prd`, created by the `infra/org` stack from one `team` variable; same code, different `*.tfvars`. Only the management account is created by hand (sign-up, card, root MFA, free credits). Team members sign in through IAM Identity Center (permission set on both accounts); the instructor too, read-only + billing on dev and prd. Region: one region for everything (e.g. `eu-west-3`).
 
 ## 2. Big picture
 
@@ -101,8 +101,8 @@ Every SQS queue has a dead-letter queue `<queue>-dlq` (`maxReceiveCount` 5, visi
 
 | Stack | Path | Destroyable by workflow | Contents |
 |---|---|---|---|
-| org | `infra/org` | **No** (`prevent_destroy`) | AWS Organization (IAM Identity Center enabled), one member account per env (`<team>-cloudnative-<env>`, email `<local>+<env>@<domain>`); IAM Identity Center users (from `team_emails`, gitignored), `team` group with the `AdministratorAccess` permission set on all accounts; outputs account ids, `OrganizationAccountAccessRole` ARNs and the SSO start URL |
-| access | `infra/access` | **No** | One state per env (`-backend-config=backends/<env>.hcl`; the bucket lives in that account, so the wrong `AWS_PROFILE` cannot reach it). tfstate bucket `<team>-cloudnative-<env>-tfstate`, GitHub OIDC provider, `github-deployer` role (AdministratorAccess for now), instructor IAM user (`ReadOnlyAccess` + `AWSBillingReadOnlyAccess`; credentials created by hand and shared through a one-time secure channel, so they never reach state), monthly budget 50/90/100 % to `budget_emails` (gitignored). GitHub collaborators (incl. `Kloox`) still to add |
+| org | `infra/org` | **No** (`prevent_destroy`) | AWS Organization (IAM Identity Center enabled), one member account per env (`<team>-cloudnative-<env>`, email `<local>+<env>@<domain>`); IAM Identity Center users (from `team_emails`, gitignored), `team` group with the `AdministratorAccess` permission set on all accounts; instructor user (`instructor_email`, gitignored) with the `InstructorReadOnly` permission set (`ReadOnlyAccess` + `AWSBillingReadOnlyAccess`) on dev and prd only; outputs account ids, `OrganizationAccountAccessRole` ARNs and the SSO start URL |
+| access | `infra/access` | **No** | One state per env (`-backend-config=backends/<env>.hcl`; the bucket lives in that account, so the wrong `AWS_PROFILE` cannot reach it). tfstate bucket `<team>-cloudnative-<env>-tfstate`, GitHub OIDC provider, `github-deployer` role (AdministratorAccess for now), monthly budget 50/90/100 % to `budget_emails` (gitignored). GitHub collaborators (incl. `Kloox`) still to add |
 | foundation | `infra/foundation` | Yes | VPC, NAT, EKS, node groups, Cluster Autoscaler, ARC Helm releases, runner secret |
 | serverless | `infra/serverless` | Yes | Secrets (entries only, values set out of band), SQS, Lambdas, HTTP + WebSocket APIs, DynamoDB, buckets, CloudFront site, CloudWatch dashboards + alarms |
 
