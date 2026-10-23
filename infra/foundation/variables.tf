@@ -44,3 +44,18 @@ variable "cluster_endpoint_public_access_cidrs" {
   type        = list(string)
   default     = ["0.0.0.0/0"]
 }
+
+variable "github_config_url" {
+  description = "Repository (or org) URL the runner scale set registers to."
+  type        = string
+}
+
+variable "github_app_id" {
+  description = "GitHub App id used by ARC. Not secret."
+  type        = string
+}
+
+variable "github_app_installation_id" {
+  description = "Installation id of that GitHub App on the repository. Not secret."
+  type        = string
+}

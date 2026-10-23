@@ -1,0 +1,40 @@
+name: runner-smoke
+
+# Smoke test for the ARC runners: N jobs that sleep, to watch runners and nodes scale up then back to 0.
+on:
+  workflow_dispatch:
+    inputs:
+      jobs:
+        description: Number of parallel jobs
+        type: number
+        default: 2
+  pull_request:
+    paths: [.github/workflows/runner-smoke.yml]
+
+permissions:
+  contents: read
+
+jobs:
+  matrix:
+    runs-on: ubuntu-latest
+    outputs:
+      items: ${{ steps.m.outputs.items }}
+    steps:
+      - id: m
+        run: echo "items=$(seq 1 "${N}" | jq -cs .)" >> "$GITHUB_OUTPUT"
+        env:
+          N: ${{ inputs.jobs || 1 }}
+
+  sleep:
+    needs: matrix
+    # Public repo: fork PRs must never reach self-hosted runners.
+    if: github.event_name == 'workflow_dispatch' || github.event.pull_request.head.repo.full_name == github.repository
+    # Targets the dev scale set even before RUNNER_LABEL is set: this workflow exists to test ARC.
+    runs-on: ${{ vars.RUNNER_LABEL || 'tonton-pinochet-cloudnative-dev' }}
+    strategy:
+      matrix:
+        n: ${{ fromJSON(needs.matrix.outputs.items) }}
+    steps:
+      - run: |
+          hostname
+          sleep 60

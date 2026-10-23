@@ -27,3 +27,8 @@ output "kubeconfig_command" {
   description = "Run once to point kubectl at the cluster."
   value       = "aws eks update-kubeconfig --region ${var.region} --name ${module.eks.cluster_name}"
 }
+
+output "runner_label" {
+  description = "Scale set name: the runs-on label, also the RUNNER_LABEL repo variable."
+  value       = local.name
+}
