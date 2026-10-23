@@ -1,15 +1,16 @@
-name: runner-smoke
+name: load-runners
 
-# Smoke test for the ARC runners: N jobs that sleep, to watch runners and nodes scale up then back to 0.
+# Load demo for the ARC runners: N jobs that sleep, to watch runners and nodes scale up then back to 0.
+# 2 runners fit on a node, so N jobs ask the autoscaler for ceil(N/2) runner nodes.
 on:
   workflow_dispatch:
     inputs:
       jobs:
         description: Number of parallel jobs
         type: number
-        default: 2
+        default: 6
   pull_request:
-    paths: [.github/workflows/runner-smoke.yml]
+    paths: [.github/workflows/load-runners.yml]
 
 permissions:
   contents: read
@@ -23,7 +24,8 @@ jobs:
       - id: m
         run: echo "items=$(seq 1 "${N}" | jq -cs .)" >> "$GITHUB_OUTPUT"
         env:
-          N: ${{ inputs.jobs || 1 }}
+          # PR runs: 4 jobs, enough to need a 2nd runner node.
+          N: ${{ inputs.jobs || 4 }}
 
   sleep:
     needs: matrix
