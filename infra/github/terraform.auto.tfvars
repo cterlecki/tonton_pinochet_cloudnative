@@ -6,6 +6,8 @@ collaborators = {
 
 prd_reviewers = ["cterlecki", "Djangss", "TomOplomo"]
 
+release_actors = ["cterlecki", "Djangss", "TomOplomo"]
+
 deployer_role_arns = {
   dev = "arn:aws:iam::807944327030:role/github-deployer"
   prd = "arn:aws:iam::255530396603:role/github-deployer"
