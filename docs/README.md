@@ -20,7 +20,7 @@
 
 ## Documentation site
 
-The `docs/` folder is published as a static site (MkDocs Material, S3 + CloudFront) by `docs.yml` on each push to `main`. URL: `<docs URL: terraform -chdir=infra/docs output -raw url>`.
+The `docs/` folder is published as a static site (MkDocs Material, S3 + CloudFront) by `docs.yml` on each push to `main`. URL: <https://d1itahsrdtmlh3.cloudfront.net>.
 
 Preview locally:
 
