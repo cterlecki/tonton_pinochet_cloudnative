@@ -53,8 +53,8 @@ Labels: `infra`, `ci`, `app`, `frontend`, `obs`, `docs`, `security`. Each issue 
 |---|---|---|
 | 1 | Team prerequisites | Group locked on intranet; each member's GPG/SSH signing key on GitHub; a signed empty commit from each member shows **Verified** |
 | 2 | Repository skeleton | Layout from `architecture.md` (`.github/workflows`, `infra/{org,access,foundation,serverless}`, `app/{functions,frontend}`, `docs`, `loadtest`); `.gitignore` excludes `*.tfstate*`, `.terraform/`, `.env*`, `credentials*`; README with local setup |
-| 3 | AWS accounts + billing (`infra/org`) | Management account created by hand (root MFA, free credits claimed, manual budget alert on day 1); `infra/org` applied from it creates the Organization and `<team>-cloudnative-dev` / `-prd` from one `team` variable, accounts under `prevent_destroy`; IAM Identity Center users for each member (`aws sso login` works on both accounts) |
-| 4 | `infra/access` stack | Applied locally per account: tfstate S3 bucket (versioned, encrypted, public access blocked, `use_lockfile = true`), GitHub OIDC provider, deployer IAM role per env whose trust policy only accepts `repo:<org>/<repo>:environment:<env>`, instructor IAM user (`ReadOnlyAccess` + `AWSBillingReadOnlyAccess`, IAM access to billing enabled), GitHub collaborators incl. `Kloox`, AWS Budgets 50/90/100 %. Instructor credentials shared through a one-time secure channel, never in repo or state. `aws sts get-caller-identity` works for every member |
+| 3 | AWS accounts + billing (`infra/org`) | Management account created by hand (root MFA, free credits claimed, manual budget alert on day 1); `infra/org` applied from it creates the Organization and `<team>-cloudnative-dev` / `-prd` from one `team` variable, accounts under `prevent_destroy`; IAM Identity Center users for each member (`aws sso login` works on both accounts); instructor Identity Center user with `InstructorReadOnly` (`ReadOnlyAccess` + `AWSBillingReadOnlyAccess`) on dev and prd, password set by the instructor from the Identity Center invite email |
+| 4 | `infra/access` stack | Applied locally per account: tfstate S3 bucket (versioned, encrypted, public access blocked, `use_lockfile = true`), GitHub OIDC provider, deployer IAM role per env whose trust policy only accepts `repo:<org>/<repo>:environment:<env>`, IAM access to billing enabled, GitHub collaborators incl. `Kloox`, AWS Budgets 50/90/100 %. `aws sts get-caller-identity` works for every member |
 | 5 | Branch protection + environments | `main` protected (PR, review, checks, signed commits); GitHub environments `dev` and `prd` (prd requires reviewer); repo variables `AWS_REGION`, `AWS_ROLE_ARN_DEV`, `AWS_ROLE_ARN_PRD` (no secrets needed for AWS auth) |
 
 ### M1 — Foundation (weeks 1–2)
@@ -63,8 +63,8 @@ Labels: `infra`, `ci`, `app`, `frontend`, `obs`, `docs`, `security`. Each issue 
 |---|---|---|
 | 6 | CI workflow `ci.yml` | On PR: `fmt -check`, `validate`, `plan` matrix {stack}×{dev,prd} via `aws-actions/configure-aws-credentials` (OIDC); plan output posted as PR comment or job summary; `runs-on: ${{ vars.RUNNER_LABEL \|\| 'ubuntu-latest' }}` |
 | 7 | Network module | VPC, public + private subnets on 2 AZs, single NAT gateway (cost), S3/DynamoDB gateway endpoints; plans clean for both envs |
-| 8 | EKS cluster + node groups | Private API endpoint (or public restricted to CIDRs), EKS Pod Identity, `system` managed node group (1 node) and tainted `runners` node group autoscaling 0–3 via Cluster Autoscaler; least-privilege node role (`AmazonEKSWorkerNodePolicy`, CNI, ECR read-only, CloudWatch agent) |
-| 9 | ARC runners via Helm | GitHub App created; its key in Secrets Manager; `helm_release` for controller + scale set (`minRunners 0`, `maxRunners 6`, tolerations, requests forcing ~2 runners/node); runner registers on job and disappears after |
+| 8 | EKS cluster + node groups | Private API endpoint (or public restricted to CIDRs), EKS Pod Identity, `system` managed node group (1 node) and tainted `runners` node group (t3a.medium) autoscaling 0–7 via Cluster Autoscaler; least-privilege node role (`AmazonEKSWorkerNodePolicy`, CNI, ECR read-only, CloudWatch agent) |
+| 9 | ARC runners via Helm | GitHub App created; its key in Secrets Manager; `helm_release` for controller + scale set (`minRunners 0`, `maxRunners 14`, tolerations, requests forcing ~2 runners/node); runner registers on job and disappears after |
 | 10 | Release + destroy workflows | `release.yml` on signed tag applies dev then prd (environment gates); `destroy.yml` manual with env input + confirmation; after destroy only `access` resources remain (verified in console and Cost Explorer) |
 | 11 | Switch CI to self-hosted | `RUNNER_LABEL` set; PR jobs visibly run on in-cluster runners; `load-runners.yml` with N sleeping jobs makes the runner node group scale up then back to 0 |
 
@@ -111,7 +111,8 @@ Labels: `infra`, `ci`, `app`, `frontend`, `obs`, `docs`, `security`. Each issue 
 | # | Title | AC |
 |---|---|---|
 | 30 | Diagram + docs | draw.io diagram with official AWS icons: flows, protocols on arrows, IAM boundaries, queues/workers, real-time path; matches `prd`; exported to `docs/` |
-| 31 | Security review | Checklist: no Lambda function URL / public invoke policy, no public bucket, no `*:*` IAM policy, no long-lived access key except the instructor user, no secret in repo (`gitleaks` in CI), OIDC only in CI, HTTPS only |
+| 30b | Docs site (#12) | `docs/` published as a static site (MkDocs Material, `use_directory_urls: false`) on private S3 + CloudFront OAC via `infra/docs` (dev account); `docs.yml` builds with `--strict`, syncs and invalidates on push to `main` touching `docs/**`; no secret or personal data in `docs/` |
+| 31 | Security review | Checklist: no Lambda function URL / public invoke policy, no public bucket, no `*:*` IAM policy, no long-lived access key, no secret in repo (`gitleaks` in CI), OIDC only in CI, HTTPS only |
 | 32 | Release `v1.0.0` + rehearsal | `prd` live from a tag; scripted demo: IDE → PR → review → tag → deploy; scaling demo; each member presents any part without notes |
 
 ## 5. Implementation process per issue
@@ -126,11 +127,11 @@ Labels: `infra`, `ci`, `app`, `frontend`, `obs`, `docs`, `security`. Each issue 
 
 | Risk | Safeguard |
 |---|---|
-| Autoscaling burns credits | Runner node group max 3 nodes, `maxRunners 6`, scale to 0, budgets, `destroy.yml` for dev when idle |
+| Autoscaling burns credits | Runner node group max 7 nodes, `maxRunners 14`, scale to 0, budgets, `destroy.yml` for dev when idle |
 | EKS + NAT fixed cost (~$0.10/h control plane, NAT hourly + data) | Single NAT gateway, destroy dev foundation when idle, VPC gateway endpoints for S3/DynamoDB |
 | Hot tile contention under brush load | One item per pixel (1 WCU/write), ≤ 256 px/message, SQS retries + DLQ, reserved concurrency on `draw-worker`; mention item-per-pixel vs item-per-tile trade-off at defense |
 | Discord 3 s / 15 min limits | Proxy only verifies + enqueues; workers use followups; render sized to finish well under 15 min |
 | Secrets in Terraform state (runner GitHub key) | State bucket private + versioned + encrypted, access limited to deployer roles; upgrade path: External Secrets Operator |
 | First apply chicken-and-egg | `access` stack applied manually once; foundation apply pinned to GitHub-hosted runners |
 | Account deleted by mistake (90-day suspension, email burned) | `infra/org` accounts have `prevent_destroy` + `close_on_deletion = false`; `org` never in `destroy.yml` |
-| Instructor access lost on destroy | Human access lives only in `infra/access`, never touched by `destroy.yml` |
+| Instructor access lost on destroy | Human access lives only in `infra/org` (Identity Center), never touched by `destroy.yml` |

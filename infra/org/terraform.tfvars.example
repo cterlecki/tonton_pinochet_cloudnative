@@ -1,3 +1,4 @@
 team       = "team42"
 email_base = "name@gmail.com"
 team_emails = ["firstname.lastname@epitech.eu"]
+instructor_email = "instructor@example.com"

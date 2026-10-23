@@ -9,12 +9,6 @@ resource "aws_s3_bucket" "tfstate" {
 
   lifecycle {
     prevent_destroy = true
-
-    # Local state: one workspace per env, so dev and prd never share a state file.
-    precondition {
-      condition     = terraform.workspace == var.environment
-      error_message = "Run `terraform workspace select ${var.environment}` first."
-    }
   }
 }
 
@@ -71,7 +65,7 @@ data "aws_iam_policy_document" "deployer_trust" {
     condition {
       test     = "StringEquals"
       variable = "token.actions.githubusercontent.com:sub"
-      values   = ["repo:${var.github_repo}:environment:${var.environment}"]
+      values   = ["repo:${var.github_owner}@${var.github_owner_id}/${var.github_repo}@${var.github_repo_id}:environment:${var.environment}"]
     }
   }
 }
@@ -86,22 +80,6 @@ resource "aws_iam_role" "deployer" {
 resource "aws_iam_role_policy_attachment" "deployer_admin" {
   role       = aws_iam_role.deployer.name
   policy_arn = "arn:aws:iam::aws:policy/AdministratorAccess"
-}
-
-# --- Instructor access (credentials created by hand so they never reach state) ---
-
-resource "aws_iam_user" "instructor" {
-  name = var.instructor_user_name
-}
-
-resource "aws_iam_user_policy_attachment" "instructor" {
-  for_each = toset([
-    "arn:aws:iam::aws:policy/ReadOnlyAccess",
-    "arn:aws:iam::aws:policy/AWSBillingReadOnlyAccess",
-  ])
-
-  user       = aws_iam_user.instructor.name
-  policy_arn = each.value
 }
 
 # --- Budget ---

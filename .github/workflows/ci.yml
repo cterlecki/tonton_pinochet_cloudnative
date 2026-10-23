@@ -1,0 +1,97 @@
+name: ci
+
+# Every PR: fmt + validate all stacks, then plan each stack in each env with that env's deployer role (keyless OIDC).
+on:
+  pull_request:
+    branches: [dev, main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.event.pull_request.number }}
+  # A cancelled plan can leave the S3 lockfile behind; let the running one finish.
+  cancel-in-progress: false
+
+jobs:
+  validate:
+    runs-on: ${{ vars.RUNNER_LABEL || 'ubuntu-latest' }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.15.9
+      - run: terraform fmt -check -recursive infra
+      - name: validate
+        run: |
+          for d in infra/*/; do
+            echo "::group::$d"
+            terraform -chdir="$d" init -backend=false -input=false >/dev/null
+            terraform -chdir="$d" validate -no-color
+            echo "::endgroup::"
+          done
+
+  docs:
+    runs-on: ${{ vars.RUNNER_LABEL || 'ubuntu-latest' }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: requirements-docs.txt
+      - run: pip install -r requirements-docs.txt
+      - run: mkdocs build --strict -d site
+
+  plan:
+    needs: validate
+    # Fork PRs get no OIDC token; skip instead of failing.
+    if: github.event.pull_request.head.repo.full_name == github.repository
+    strategy:
+      fail-fast: false
+      matrix:
+        # Add monitoring once infra/monitoring exists. access and org are applied by hand (docs/architecture.md).
+        stack: [foundation, serverless]
+        env: [dev, prd]
+    # foundation never depends on the ARC runners it manages (and needs the aws CLI for eks get-token).
+    runs-on: ${{ matrix.stack == 'foundation' && 'ubuntu-latest' || vars.RUNNER_LABEL || 'ubuntu-latest' }}
+    # The deployer role only trusts tokens issued for its environment (prd needs a reviewer).
+    environment: ${{ matrix.env }}
+    permissions:
+      contents: read
+      id-token: write
+    defaults:
+      run:
+        working-directory: infra/${{ matrix.stack }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.15.9
+          terraform_wrapper: false
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars[format('AWS_ROLE_ARN_{0}', matrix.env == 'prd' && 'PRD' || 'DEV')] }}
+          aws-region: ${{ vars.AWS_REGION }}
+      - run: terraform init -input=false -backend-config=backends/${{ matrix.env }}.hcl
+      - name: plan
+        env:
+          ENV: ${{ matrix.env }}
+        run: |
+          args=()
+          [ -f "$ENV.tfvars" ] && args+=("-var-file=$ENV.tfvars")
+          terraform plan -input=false -no-color -lock-timeout=5m "${args[@]}" -out=tfplan
+      - name: summary
+        # 4-backtick fence so ``` inside the plan can't close it; truncated under the 1 MiB summary limit.
+        run: |
+          terraform show -no-color tfplan > plan.txt
+          {
+            echo "### ${{ matrix.stack }} / ${{ matrix.env }}"
+            echo '<details><summary>plan</summary>'
+            echo
+            echo '````'
+            head -c 900000 plan.txt
+            echo
+            echo '````'
+            echo '</details>'
+          } >> "$GITHUB_STEP_SUMMARY"

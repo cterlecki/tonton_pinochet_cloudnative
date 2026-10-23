@@ -24,16 +24,26 @@ variable "region" {
   default     = "eu-west-3"
 }
 
-variable "github_repo" {
-  description = "owner/repo allowed to assume the deployer role."
+# The repo uses immutable OIDC subjects (repo:<owner>@<owner_id>/<repo>@<repo_id>:...),
+# see gh api repos/<owner>/<repo>/actions/oidc/customization/sub
+variable "github_owner" {
+  description = "GitHub owner of the repo allowed to assume the deployer role."
   type        = string
-  default     = "cterlecki/tonton_pinochet_cloudnative"
 }
 
-variable "instructor_user_name" {
-  description = "IAM user name for the instructor."
+variable "github_owner_id" {
+  description = "Numeric id of github_owner (gh api users/<owner> --jq .id)."
   type        = string
-  default     = "jeremie.jaouen"
+}
+
+variable "github_repo" {
+  description = "Repo name (without owner) allowed to assume the deployer role."
+  type        = string
+}
+
+variable "github_repo_id" {
+  description = "Numeric id of github_repo (gh api repos/<owner>/<repo> --jq .id)."
+  type        = string
 }
 
 variable "budget_limit_usd" {

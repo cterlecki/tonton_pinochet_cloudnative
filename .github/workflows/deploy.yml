@@ -1,0 +1,72 @@
+name: deploy
+
+# Called by release.yml once per env: plan (shown in the run summary), then apply only if the plan is still the one reviewed.
+# The saved tfplan is never uploaded: it holds sensitive values and the repo is public.
+on:
+  workflow_call:
+    inputs:
+      env:
+        type: string
+        required: true
+
+permissions:
+  contents: read
+  id-token: write
+
+env:
+  ENV: ${{ inputs.env }}
+  # monitoring is skipped until it exists; foundation and serverless must be there.
+  STACKS: foundation serverless monitoring
+
+jobs:
+  plan:
+    # foundation never runs on the ARC runners it manages.
+    runs-on: ubuntu-latest
+    # The deployer role only trusts tokens issued for its environment; prd waits for a reviewer here.
+    environment: ${{ inputs.env }}
+    outputs:
+      digest: ${{ steps.plan.outputs.digest }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.15.9
+          terraform_wrapper: false
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars[format('AWS_ROLE_ARN_{0}', inputs.env == 'prd' && 'PRD' || 'DEV')] }}
+          aws-region: ${{ vars.AWS_REGION }}
+      - id: plan
+        run: .github/scripts/plan-stacks.sh "$GITHUB_STEP_SUMMARY"
+
+  apply:
+    needs: plan
+    runs-on: ubuntu-latest
+    # prd: second approval, after reading the plan job's summary.
+    environment: ${{ inputs.env }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.15.9
+          terraform_wrapper: false
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars[format('AWS_ROLE_ARN_{0}', inputs.env == 'prd' && 'PRD' || 'DEV')] }}
+          aws-region: ${{ vars.AWS_REGION }}
+      - id: plan
+        run: .github/scripts/plan-stacks.sh /dev/null
+      - name: refuse a plan that differs from the reviewed one
+        env:
+          REVIEWED: ${{ needs.plan.outputs.digest }}
+          CURRENT: ${{ steps.plan.outputs.digest }}
+        run: |
+          [ -n "$REVIEWED" ] && [ "$REVIEWED" = "$CURRENT" ] || { echo "::error::plan changed since review ($REVIEWED -> $CURRENT), re-run the release"; exit 1; }
+      - name: apply the saved plans
+        run: |
+          for stack in $STACKS; do
+            [ -f "infra/$stack/tfplan" ] || continue
+            echo "::group::$stack"
+            terraform -chdir="infra/$stack" apply -input=false -lock-timeout=5m tfplan
+            echo "::endgroup::"
+          done

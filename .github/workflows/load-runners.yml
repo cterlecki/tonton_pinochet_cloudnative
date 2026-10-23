@@ -1,0 +1,42 @@
+name: load-runners
+
+# Load demo for the ARC runners: N jobs that sleep, to watch runners and nodes scale up then back to 0.
+# 2 runners fit on a node, so N jobs ask the autoscaler for ceil(N/2) runner nodes.
+on:
+  workflow_dispatch:
+    inputs:
+      jobs:
+        description: Number of parallel jobs
+        type: number
+        default: 6
+  pull_request:
+    paths: [.github/workflows/load-runners.yml]
+
+permissions:
+  contents: read
+
+jobs:
+  matrix:
+    runs-on: ubuntu-latest
+    outputs:
+      items: ${{ steps.m.outputs.items }}
+    steps:
+      - id: m
+        run: echo "items=$(seq 1 "${N}" | jq -cs .)" >> "$GITHUB_OUTPUT"
+        env:
+          # PR runs: 4 jobs, enough to need a 2nd runner node.
+          N: ${{ inputs.jobs || 4 }}
+
+  sleep:
+    needs: matrix
+    # Public repo: fork PRs must never reach self-hosted runners.
+    if: github.event_name == 'workflow_dispatch' || github.event.pull_request.head.repo.full_name == github.repository
+    # Targets the dev scale set even before RUNNER_LABEL is set: this workflow exists to test ARC.
+    runs-on: ${{ vars.RUNNER_LABEL || 'tonton-pinochet-cloudnative-dev' }}
+    strategy:
+      matrix:
+        n: ${{ fromJSON(needs.matrix.outputs.items) }}
+    steps:
+      - run: |
+          hostname
+          sleep 60

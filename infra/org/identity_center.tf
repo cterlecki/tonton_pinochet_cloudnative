@@ -87,3 +87,60 @@ resource "aws_ssoadmin_account_assignment" "team_admin" {
 
   depends_on = [aws_ssoadmin_managed_policy_attachment.admin]
 }
+
+# --- Instructor: read-only + billing on the member accounts, outside the team group ---
+
+resource "aws_identitystore_user" "instructor" {
+  provider = aws.sso
+
+  identity_store_id = local.identity_store_id
+  user_name         = "jeremie.jaouen"
+  display_name      = "Jeremie Jaouen"
+
+  name {
+    given_name  = "Jeremie"
+    family_name = "Jaouen"
+  }
+
+  emails {
+    value   = var.instructor_email
+    type    = "work"
+    primary = true
+  }
+}
+
+resource "aws_ssoadmin_permission_set" "instructor" {
+  provider = aws.sso
+
+  instance_arn     = local.sso_instance_arn
+  name             = "InstructorReadOnly"
+  description      = "Read-only and billing view for the instructor"
+  session_duration = "PT8H"
+}
+
+resource "aws_ssoadmin_managed_policy_attachment" "instructor" {
+  provider = aws.sso
+  for_each = toset([
+    "arn:aws:iam::aws:policy/ReadOnlyAccess",
+    "arn:aws:iam::aws:policy/AWSBillingReadOnlyAccess",
+  ])
+
+  instance_arn       = local.sso_instance_arn
+  permission_set_arn = aws_ssoadmin_permission_set.instructor.arn
+  managed_policy_arn = each.value
+}
+
+# Member accounts only: the management account would also expose Organizations and Identity Center.
+resource "aws_ssoadmin_account_assignment" "instructor" {
+  provider = aws.sso
+  for_each = aws_organizations_account.env
+
+  instance_arn       = local.sso_instance_arn
+  permission_set_arn = aws_ssoadmin_permission_set.instructor.arn
+  principal_type     = "USER"
+  principal_id       = aws_identitystore_user.instructor.user_id
+  target_type        = "AWS_ACCOUNT"
+  target_id          = each.value.id
+
+  depends_on = [aws_ssoadmin_managed_policy_attachment.instructor]
+}
