@@ -105,7 +105,7 @@ jobs:
         run: |
           {
             echo
-            echo "Left on purpose: \`access\` stack (state bucket, OIDC, deployer role, budget) and the hand-made secret \`arc/github-app-private-key\`."
+            echo "Left on purpose: \`access\` stack (state bucket, OIDC, deployer role, budget), \`docs\` stack (dev only) and the hand-made secret \`arc/github-app-private-key\`."
             if [ -n "$RUNNER_LABEL" ]; then
               echo
               echo "> [!WARNING]"
