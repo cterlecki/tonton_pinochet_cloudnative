@@ -45,3 +45,8 @@ variable "team_emails" {
     error_message = "Each email must look like firstname.lastname@domain, lowercase."
   }
 }
+
+variable "instructor_email" {
+  description = "Instructor email for Identity Center. Keep in gitignored terraform.tfvars."
+  type        = string
+}

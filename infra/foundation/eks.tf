@@ -10,6 +10,11 @@ data "aws_iam_roles" "sso_admin" {
   path_prefix = "/aws-reserved/sso.amazonaws.com/"
 }
 
+data "aws_iam_roles" "sso_instructor" {
+  name_regex  = "^AWSReservedSSO_InstructorReadOnly_.*"
+  path_prefix = "/aws-reserved/sso.amazonaws.com/"
+}
+
 locals {
   # Access entries take the full ARN with its path (stripping it is only for the aws-auth ConfigMap).
   sso_admin_arn = one(data.aws_iam_roles.sso_admin.arns)
@@ -52,6 +57,17 @@ module "eks" {
       principal_arn       = local.sso_admin_arn
       type                = local.cluster_admin.type
       policy_associations = { admin = { policy_arn = local.cluster_admin.policy_arn, access_scope = local.cluster_admin.access_scope } }
+    }
+    # Read-only view of the cluster (nodes, pods) for the instructor; no Secrets access.
+    instructor = {
+      principal_arn = one(data.aws_iam_roles.sso_instructor.arns)
+      type          = "STANDARD"
+      policy_associations = {
+        view = {
+          policy_arn   = "arn:aws:eks::aws:cluster-access-policy/AmazonEKSViewPolicy"
+          access_scope = { type = "cluster" }
+        }
+      }
     }
   }
 

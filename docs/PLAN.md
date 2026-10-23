@@ -53,8 +53,8 @@ Labels: `infra`, `ci`, `app`, `frontend`, `obs`, `docs`, `security`. Each issue 
 |---|---|---|
 | 1 | Team prerequisites | Group locked on intranet; each member's GPG/SSH signing key on GitHub; a signed empty commit from each member shows **Verified** |
 | 2 | Repository skeleton | Layout from `architecture.md` (`.github/workflows`, `infra/{org,access,foundation,serverless}`, `app/{functions,frontend}`, `docs`, `loadtest`); `.gitignore` excludes `*.tfstate*`, `.terraform/`, `.env*`, `credentials*`; README with local setup |
-| 3 | AWS accounts + billing (`infra/org`) | Management account created by hand (root MFA, free credits claimed, manual budget alert on day 1); `infra/org` applied from it creates the Organization and `<team>-cloudnative-dev` / `-prd` from one `team` variable, accounts under `prevent_destroy`; IAM Identity Center users for each member (`aws sso login` works on both accounts) |
-| 4 | `infra/access` stack | Applied locally per account: tfstate S3 bucket (versioned, encrypted, public access blocked, `use_lockfile = true`), GitHub OIDC provider, deployer IAM role per env whose trust policy only accepts `repo:<org>/<repo>:environment:<env>`, instructor IAM user (`ReadOnlyAccess` + `AWSBillingReadOnlyAccess`, IAM access to billing enabled), GitHub collaborators incl. `Kloox`, AWS Budgets 50/90/100 %. Instructor credentials shared through a one-time secure channel, never in repo or state. `aws sts get-caller-identity` works for every member |
+| 3 | AWS accounts + billing (`infra/org`) | Management account created by hand (root MFA, free credits claimed, manual budget alert on day 1); `infra/org` applied from it creates the Organization and `<team>-cloudnative-dev` / `-prd` from one `team` variable, accounts under `prevent_destroy`; IAM Identity Center users for each member (`aws sso login` works on both accounts); instructor Identity Center user with `InstructorReadOnly` (`ReadOnlyAccess` + `AWSBillingReadOnlyAccess`) on dev and prd, password set by the instructor from the Identity Center invite email |
+| 4 | `infra/access` stack | Applied locally per account: tfstate S3 bucket (versioned, encrypted, public access blocked, `use_lockfile = true`), GitHub OIDC provider, deployer IAM role per env whose trust policy only accepts `repo:<org>/<repo>:environment:<env>`, IAM access to billing enabled, GitHub collaborators incl. `Kloox`, AWS Budgets 50/90/100 %. `aws sts get-caller-identity` works for every member |
 | 5 | Branch protection + environments | `main` protected (PR, review, checks, signed commits); GitHub environments `dev` and `prd` (prd requires reviewer); repo variables `AWS_REGION`, `AWS_ROLE_ARN_DEV`, `AWS_ROLE_ARN_PRD` (no secrets needed for AWS auth) |
 
 ### M1 — Foundation (weeks 1–2)
@@ -111,7 +111,7 @@ Labels: `infra`, `ci`, `app`, `frontend`, `obs`, `docs`, `security`. Each issue 
 | # | Title | AC |
 |---|---|---|
 | 30 | Diagram + docs | draw.io diagram with official AWS icons: flows, protocols on arrows, IAM boundaries, queues/workers, real-time path; matches `prd`; exported to `docs/` |
-| 31 | Security review | Checklist: no Lambda function URL / public invoke policy, no public bucket, no `*:*` IAM policy, no long-lived access key except the instructor user, no secret in repo (`gitleaks` in CI), OIDC only in CI, HTTPS only |
+| 31 | Security review | Checklist: no Lambda function URL / public invoke policy, no public bucket, no `*:*` IAM policy, no long-lived access key, no secret in repo (`gitleaks` in CI), OIDC only in CI, HTTPS only |
 | 32 | Release `v1.0.0` + rehearsal | `prd` live from a tag; scripted demo: IDE → PR → review → tag → deploy; scaling demo; each member presents any part without notes |
 
 ## 5. Implementation process per issue
@@ -133,4 +133,4 @@ Labels: `infra`, `ci`, `app`, `frontend`, `obs`, `docs`, `security`. Each issue 
 | Secrets in Terraform state (runner GitHub key) | State bucket private + versioned + encrypted, access limited to deployer roles; upgrade path: External Secrets Operator |
 | First apply chicken-and-egg | `access` stack applied manually once; foundation apply pinned to GitHub-hosted runners |
 | Account deleted by mistake (90-day suspension, email burned) | `infra/org` accounts have `prevent_destroy` + `close_on_deletion = false`; `org` never in `destroy.yml` |
-| Instructor access lost on destroy | Human access lives only in `infra/access`, never touched by `destroy.yml` |
+| Instructor access lost on destroy | Human access lives only in `infra/org` (Identity Center), never touched by `destroy.yml` |
