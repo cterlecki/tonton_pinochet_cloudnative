@@ -8,8 +8,14 @@ terraform {
     }
   }
 
-  # Local state on purpose: this stack runs first, before any state bucket exists.
-  # Migrate later with `terraform init -migrate-state` to a bucket in the management account.
+  # Single env, so the config is inline. The bucket is created by this stack (bootstrap: docs/architecture.md).
+  backend "s3" {
+    bucket       = "tonton-pinochet-cloudnative-org-tfstate"
+    key          = "org/terraform.tfstate"
+    region       = "eu-west-3"
+    encrypt      = true
+    use_lockfile = true
+  }
 }
 
 provider "aws" {

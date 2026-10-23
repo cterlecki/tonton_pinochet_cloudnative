@@ -16,7 +16,8 @@ resource "github_repository" "this" {
   allow_rebase_merge          = false
   squash_merge_commit_title   = "PR_TITLE"
   squash_merge_commit_message = "COMMIT_MESSAGES"
-  delete_branch_on_merge      = true
+  # Off: the dev -> main PR would delete dev.
+  delete_branch_on_merge = false
 
   lifecycle {
     prevent_destroy = true

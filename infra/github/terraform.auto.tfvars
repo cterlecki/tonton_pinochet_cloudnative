@@ -10,3 +10,5 @@ deployer_role_arns = {
   dev = "arn:aws:iam::807944327030:role/github-deployer"
   prd = "arn:aws:iam::255530396603:role/github-deployer"
 }
+
+required_status_checks = ["source-is-dev"]
