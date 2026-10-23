@@ -161,7 +161,7 @@ Clear: `clear-worker` bumps `meta.epoch` first; `broadcaster` pushes a `clear` m
 | `runner-smoke.yml` | `workflow_dispatch` (input `jobs`), `pull_request` touching the workflow | N jobs that `sleep` on the ARC runners to watch runner and node scale-up |
 | `aws-identity.yml` | `workflow_dispatch` (input `environment`) | assume the env's `github-deployer` role through OIDC and print the caller identity |
 | `main-source.yml` | `pull_request` to `main` | check that the PR comes from `dev` |
-| `destroy.yml` (planned) | `workflow_dispatch` (input `env`, type-to-confirm) | destroy `serverless` then `foundation` for that env |
+| `destroy.yml` | `workflow_dispatch` (input `env`, type-to-confirm) | `confirm` job outside any environment (wrong text stops before any approval or AWS access), then the same `plan` → `destroy` pair as a release with `terraform plan -destroy` (prd: 2 approvals, destroy refused if the plan changed since review); stacks `monitoring` → `serverless` → `foundation`, stops at the first failure; `org` and `access` never touched; on `ubuntu-latest`, shares the `release` concurrency group. Left after a run: the `access` stack, the `docs` stack (dev, not destroyable by workflow) and the hand-made `arc/github-app-private-key` secret; the summary warns if `RUNNER_LABEL` still points at destroyed runners |
 | `load-runners.yml` (planned) | `workflow_dispatch` (input `jobs`) | matrix of N jobs that `sleep` to force runner node scale-up (defense demo) |
 
 Every job authenticates with `aws-actions/configure-aws-credentials` (`role-to-assume: ${{ vars.AWS_ROLE_ARN_<ENV> }}`, `permissions: id-token: write`).

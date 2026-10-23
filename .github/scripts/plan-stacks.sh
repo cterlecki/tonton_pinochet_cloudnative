@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Plan every stack in $STACKS for $ENV, write each plan to $1 (markdown), and set the `digest` step output:
 # a hash of the planned changes (address + actions), so the apply job can prove it applies what was reviewed.
+# Optional $PLAN_ARGS is passed to every plan (destroy.yml sets it to -destroy).
 set -euo pipefail
 summary=$1
 changes=$(mktemp)
@@ -15,7 +16,7 @@ for stack in $STACKS; do
   args=()
   [ -f "$dir/$ENV.tfvars" ] && args+=("-var-file=$ENV.tfvars")
   terraform -chdir="$dir" init -input=false -backend-config="backends/$ENV.hcl"
-  terraform -chdir="$dir" plan -input=false -no-color -lock-timeout=5m ${args[@]+"${args[@]}"} -out=tfplan
+  terraform -chdir="$dir" plan -input=false -no-color -lock-timeout=5m ${PLAN_ARGS:-} ${args[@]+"${args[@]}"} -out=tfplan
   echo "::endgroup::"
 
   terraform -chdir="$dir" show -json tfplan |

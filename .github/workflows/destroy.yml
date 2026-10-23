@@ -1,0 +1,114 @@
+name: destroy
+
+# Manual teardown of one env (dev when idle: EKS is billed hourly): plan -destroy, review, then destroy what was reviewed.
+# Stacks go monitoring -> serverless -> foundation so nothing is left pointing at deleted resources.
+# org and access are never destroyed here (docs/architecture.md).
+on:
+  workflow_dispatch:
+    inputs:
+      env:
+        description: Environment to destroy
+        type: choice
+        options: [dev, prd]
+        default: dev
+      confirm:
+        description: Type the environment name to confirm
+        type: string
+        required: true
+
+permissions:
+  contents: read
+
+# Same group as release.yml: a destroy never runs alongside an apply.
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+env:
+  ENV: ${{ inputs.env }}
+  # monitoring is skipped until it exists; foundation and serverless must be there.
+  STACKS: monitoring serverless foundation
+  PLAN_ARGS: -destroy
+
+jobs:
+  confirm:
+    # Outside the environment: a wrong confirmation stops before any approval request or AWS access.
+    runs-on: ubuntu-latest
+    steps:
+      - env:
+          CONFIRM: ${{ inputs.confirm }}
+        run: |
+          [ "$CONFIRM" = "$ENV" ] || { echo "::error::confirmation must be exactly '$ENV'"; exit 1; }
+
+  plan:
+    needs: confirm
+    # Never on the ARC runners this destroys.
+    runs-on: ubuntu-latest
+    # The deployer role only trusts tokens issued for its environment; prd waits for a reviewer here.
+    environment: ${{ inputs.env }}
+    permissions:
+      contents: read
+      id-token: write
+    outputs:
+      digest: ${{ steps.plan.outputs.digest }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.15.9
+          terraform_wrapper: false
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars[format('AWS_ROLE_ARN_{0}', inputs.env == 'prd' && 'PRD' || 'DEV')] }}
+          aws-region: ${{ vars.AWS_REGION }}
+      - id: plan
+        run: .github/scripts/plan-stacks.sh "$GITHUB_STEP_SUMMARY"
+
+  destroy:
+    needs: plan
+    runs-on: ubuntu-latest
+    # prd: second approval, after reading the plan job's summary.
+    environment: ${{ inputs.env }}
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.15.9
+          terraform_wrapper: false
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars[format('AWS_ROLE_ARN_{0}', inputs.env == 'prd' && 'PRD' || 'DEV')] }}
+          aws-region: ${{ vars.AWS_REGION }}
+      - id: plan
+        run: .github/scripts/plan-stacks.sh /dev/null
+      - name: refuse a plan that differs from the reviewed one
+        env:
+          REVIEWED: ${{ needs.plan.outputs.digest }}
+          CURRENT: ${{ steps.plan.outputs.digest }}
+        run: |
+          [ -n "$REVIEWED" ] && [ "$REVIEWED" = "$CURRENT" ] || { echo "::error::plan changed since review ($REVIEWED -> $CURRENT), re-run the destroy"; exit 1; }
+      - name: destroy in order, stop at the first failure
+        run: |
+          for stack in $STACKS; do
+            [ -f "infra/$stack/tfplan" ] || continue
+            echo "::group::$stack"
+            terraform -chdir="infra/$stack" apply -input=false -lock-timeout=5m tfplan
+            echo "::endgroup::"
+            echo "- destroyed \`$stack\` ($ENV)" >> "$GITHUB_STEP_SUMMARY"
+          done
+      - name: remind what is left
+        env:
+          RUNNER_LABEL: ${{ vars.RUNNER_LABEL }}
+        run: |
+          {
+            echo
+            echo "Left on purpose: \`access\` stack (state bucket, OIDC, deployer role, budget), \`docs\` stack (dev only) and the hand-made secret \`arc/github-app-private-key\`."
+            if [ -n "$RUNNER_LABEL" ]; then
+              echo
+              echo "> [!WARNING]"
+              echo "> \`RUNNER_LABEL\` is set to \`$RUNNER_LABEL\`: if those runners were in $ENV, jobs using it now wait forever. Clear it or re-apply foundation."
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
