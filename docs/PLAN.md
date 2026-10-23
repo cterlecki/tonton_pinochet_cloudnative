@@ -111,6 +111,7 @@ Labels: `infra`, `ci`, `app`, `frontend`, `obs`, `docs`, `security`. Each issue 
 | # | Title | AC |
 |---|---|---|
 | 30 | Diagram + docs | draw.io diagram with official AWS icons: flows, protocols on arrows, IAM boundaries, queues/workers, real-time path; matches `prd`; exported to `docs/` |
+| 30b | Docs site (#12) | `docs/` published as a static site (MkDocs Material, `use_directory_urls: false`) on private S3 + CloudFront OAC via `infra/docs` (dev account); `docs.yml` builds with `--strict`, syncs and invalidates on push to `main` touching `docs/**`; no secret or personal data in `docs/` |
 | 31 | Security review | Checklist: no Lambda function URL / public invoke policy, no public bucket, no `*:*` IAM policy, no long-lived access key, no secret in repo (`gitleaks` in CI), OIDC only in CI, HTTPS only |
 | 32 | Release `v1.0.0` + rehearsal | `prd` live from a tag; scripted demo: IDE → PR → review → tag → deploy; scaling demo; each member presents any part without notes |
 

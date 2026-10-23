@@ -51,3 +51,9 @@ variable "deployer_role_arns" {
     error_message = "deployer_role_arns must have exactly the keys dev and prd."
   }
 }
+
+variable "runner_label" {
+  description = "infra/foundation output runner_label (ARC scale set name), exposed as RUNNER_LABEL. Empty = no variable, workflows fall back to ubuntu-latest."
+  type        = string
+  default     = ""
+}

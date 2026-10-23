@@ -83,13 +83,16 @@ resource "github_repository_environment" "env" {
 # --- Repo variables for keyless AWS auth (no AWS secret anywhere) ---
 
 resource "github_actions_variable" "this" {
-  for_each = {
+  for_each = merge({
     AWS_REGION       = var.aws_region
     AWS_ROLE_ARN_DEV = var.deployer_role_arns["dev"]
     AWS_ROLE_ARN_PRD = var.deployer_role_arns["prd"]
     # release.yml refuses tags pushed by anyone else
     RELEASE_ACTORS = join(",", var.release_actors)
-  }
+    },
+    # GitHub rejects empty variables: no label means no variable (runs-on falls back to ubuntu-latest).
+    var.runner_label == "" ? {} : { RUNNER_LABEL = var.runner_label }
+  )
 
   repository    = github_repository.this.name
   variable_name = each.key
