@@ -212,7 +212,7 @@ Clear: `clear-worker` bumps `meta.epoch` first; `broadcaster` pushes a `clear` m
 
 | Workflow | Trigger | Jobs |
 |---|---|---|
-| `ci.yml` | `pull_request` to `main` | `terraform fmt -check -recursive`, `validate` (each stack), `plan` matrix {foundation, serverless} × {dev, prd}, app lint + unit tests + build |
+| `ci.yml` | `pull_request` to `dev` and `main` | `terraform fmt -check -recursive`, `validate` (each stack), `plan` matrix {foundation, serverless} × {dev, prd} in the env's GitHub environment (prd legs wait for a reviewer), plan in the job summary; app lint + unit tests + build once `app/` has code |
 | `release.yml` | push tag `v*.*.*` | build function zips + frontend → apply `foundation` + `serverless` to **dev** (environment `dev`) → apply to **prd** (environment `prd`, required reviewers) → sync frontend to the env's S3 bucket + CloudFront invalidation |
 | `destroy.yml` | `workflow_dispatch` (input `env`, type-to-confirm) | destroy `serverless` then `foundation` for that env |
 | `load-runners.yml` | `workflow_dispatch` (input `jobs`) | matrix of N jobs that `sleep` to force runner node scale-up (defense demo) |

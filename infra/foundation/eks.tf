@@ -45,6 +45,9 @@ module "eks" {
   endpoint_public_access       = true
   endpoint_public_access_cidrs = var.cluster_endpoint_public_access_cidrs
 
+  # Defaults to whoever runs Terraform, so the key policy would flip between laptop (SSO) and CI (deployer).
+  kms_key_administrators = [data.aws_iam_role.deployer.arn, local.sso_admin_arn]
+
   authentication_mode                      = "API"
   enable_cluster_creator_admin_permissions = false
   access_entries = {
