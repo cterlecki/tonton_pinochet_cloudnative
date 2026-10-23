@@ -11,4 +11,11 @@ deployer_role_arns = {
   prd = "arn:aws:iam::255530396603:role/github-deployer"
 }
 
-required_status_checks = ["source-is-dev"]
+required_status_checks = [
+  "source-is-dev",
+  "validate",
+  "plan (foundation, dev)",
+  "plan (foundation, prd)",
+  "plan (serverless, dev)",
+  "plan (serverless, prd)",
+]

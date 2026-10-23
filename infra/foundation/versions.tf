@@ -18,9 +18,6 @@ terraform {
       version = "~> 3.0"
     }
   }
-
-  # shortcut: local state until infra/access has created the state buckets,
-  # then add `backend "s3" {}` and run `terraform init -backend-config=backends/<env>.hcl -migrate-state`.
 }
 
 # Credentials: an Identity Center profile for the target account (AWS_PROFILE=<env>).
