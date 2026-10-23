@@ -63,8 +63,8 @@ Labels: `infra`, `ci`, `app`, `frontend`, `obs`, `docs`, `security`. Each issue 
 |---|---|---|
 | 6 | CI workflow `ci.yml` | On PR: `fmt -check`, `validate`, `plan` matrix {stack}×{dev,prd} via `aws-actions/configure-aws-credentials` (OIDC); plan output posted as PR comment or job summary; `runs-on: ${{ vars.RUNNER_LABEL \|\| 'ubuntu-latest' }}` |
 | 7 | Network module | VPC, public + private subnets on 2 AZs, single NAT gateway (cost), S3/DynamoDB gateway endpoints; plans clean for both envs |
-| 8 | EKS cluster + node groups | Private API endpoint (or public restricted to CIDRs), EKS Pod Identity, `system` managed node group (1 node) and tainted `runners` node group autoscaling 0–3 via Cluster Autoscaler; least-privilege node role (`AmazonEKSWorkerNodePolicy`, CNI, ECR read-only, CloudWatch agent) |
-| 9 | ARC runners via Helm | GitHub App created; its key in Secrets Manager; `helm_release` for controller + scale set (`minRunners 0`, `maxRunners 6`, tolerations, requests forcing ~2 runners/node); runner registers on job and disappears after |
+| 8 | EKS cluster + node groups | Private API endpoint (or public restricted to CIDRs), EKS Pod Identity, `system` managed node group (1 node) and tainted `runners` node group (t3a.medium) autoscaling 0–7 via Cluster Autoscaler; least-privilege node role (`AmazonEKSWorkerNodePolicy`, CNI, ECR read-only, CloudWatch agent) |
+| 9 | ARC runners via Helm | GitHub App created; its key in Secrets Manager; `helm_release` for controller + scale set (`minRunners 0`, `maxRunners 14`, tolerations, requests forcing ~2 runners/node); runner registers on job and disappears after |
 | 10 | Release + destroy workflows | `release.yml` on signed tag applies dev then prd (environment gates); `destroy.yml` manual with env input + confirmation; after destroy only `access` resources remain (verified in console and Cost Explorer) |
 | 11 | Switch CI to self-hosted | `RUNNER_LABEL` set; PR jobs visibly run on in-cluster runners; `load-runners.yml` with N sleeping jobs makes the runner node group scale up then back to 0 |
 
@@ -126,7 +126,7 @@ Labels: `infra`, `ci`, `app`, `frontend`, `obs`, `docs`, `security`. Each issue 
 
 | Risk | Safeguard |
 |---|---|
-| Autoscaling burns credits | Runner node group max 3 nodes, `maxRunners 6`, scale to 0, budgets, `destroy.yml` for dev when idle |
+| Autoscaling burns credits | Runner node group max 7 nodes, `maxRunners 14`, scale to 0, budgets, `destroy.yml` for dev when idle |
 | EKS + NAT fixed cost (~$0.10/h control plane, NAT hourly + data) | Single NAT gateway, destroy dev foundation when idle, VPC gateway endpoints for S3/DynamoDB |
 | Hot tile contention under brush load | One item per pixel (1 WCU/write), ≤ 256 px/message, SQS retries + DLQ, reserved concurrency on `draw-worker`; mention item-per-pixel vs item-per-tile trade-off at defense |
 | Discord 3 s / 15 min limits | Proxy only verifies + enqueues; workers use followups; render sized to finish well under 15 min |

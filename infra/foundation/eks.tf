@@ -1,4 +1,4 @@
-# Cluster: EKS with API auth, add-ons, a fixed system pool and a 0..3 runners pool
+# Cluster: EKS with API auth, add-ons, a fixed system pool and a 0..7 runners pool
 
 data "aws_iam_role" "deployer" {
   name = "github-deployer"
@@ -78,9 +78,10 @@ module "eks" {
 
     # Scaled by the Cluster Autoscaler; only runner pods tolerate the taint.
     runners = {
-      instance_types = ["t3.large"]
+      # Cheapest x86 with 2 vCPU / 4 GiB in eu-west-3; t3.medium is the same size, used if t3a has no capacity.
+      instance_types = ["t3a.medium", "t3.medium"]
       min_size       = 0
-      max_size       = 3
+      max_size       = 7
       desired_size   = 0
 
       labels = { pool = "runners" }
