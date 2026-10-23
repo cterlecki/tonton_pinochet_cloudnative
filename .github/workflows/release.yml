@@ -1,0 +1,55 @@
+name: release
+
+# Signed tag vX.Y.Z on the tip of main, pushed by a RELEASE_ACTORS member: deploy dev, then prd (each: plan, review, apply).
+# org and access are never applied here (docs/architecture.md).
+on:
+  push:
+    tags: ["v*.*.*"]
+
+permissions:
+  contents: read
+
+# One release at a time, never cancelled mid-apply. GitHub keeps only one pending run: a third tag pushed meanwhile replaces it.
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: tag is vX.Y.Z, signed, on the tip of main, pushed by a release actor
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+          ACTORS: ${{ vars.RELEASE_ACTORS }}
+        run: |
+          [[ "$TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "::error::$TAG is not vX.Y.Z"; exit 1; }
+          [[ ",$ACTORS," == *",$GITHUB_ACTOR,"* ]] || { echo "::error::$GITHUB_ACTOR is not in RELEASE_ACTORS"; exit 1; }
+          [ "$(git cat-file -t "refs/tags/$TAG")" = tag ] || { echo "::error::$TAG must be an annotated, signed tag"; exit 1; }
+          verified=$(gh api "repos/$GITHUB_REPOSITORY/git/tags/$(git rev-parse "refs/tags/$TAG")" --jq .verification.verified)
+          [ "$verified" = true ] || { echo "::error::$TAG signature is not verified by GitHub"; exit 1; }
+          # Tip only: tagging an older commit would silently roll prod back.
+          [ "$GITHUB_SHA" = "$(git rev-parse origin/main)" ] || { echo "::error::$TAG is not the tip of main"; exit 1; }
+
+  dev:
+    needs: check
+    uses: ./.github/workflows/deploy.yml
+    # A called workflow can't get more than the caller grants.
+    permissions:
+      contents: read
+      id-token: write
+    with:
+      env: dev
+
+  prd:
+    needs: dev
+    uses: ./.github/workflows/deploy.yml
+    permissions:
+      contents: read
+      id-token: write
+    with:
+      env: prd

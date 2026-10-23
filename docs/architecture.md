@@ -102,7 +102,7 @@ Every SQS queue has a dead-letter queue `<queue>-dlq` (`maxReceiveCount` 5, visi
 | Stack | Path | Destroyable by workflow | Contents |
 |---|---|---|---|
 | org | `infra/org` | **No** (`prevent_destroy`) | AWS Organization (IAM Identity Center enabled), one member account per env (`<team>-cloudnative-<env>`, email `<local>+<env>@<domain>`); IAM Identity Center users (from `team_emails`, gitignored), `team` group with the `AdministratorAccess` permission set on all accounts; instructor user (`instructor_email`, gitignored) with the `InstructorReadOnly` permission set (`ReadOnlyAccess` + `AWSBillingReadOnlyAccess`) on dev and prd only; outputs account ids, `OrganizationAccountAccessRole` ARNs and the SSO start URL |
-| access | `infra/access` | **No** | One state per env (`-backend-config=backends/<env>.hcl`; the bucket lives in that account, so the wrong `AWS_PROFILE` cannot reach it). tfstate bucket `<team>-cloudnative-<env>-tfstate`, GitHub OIDC provider, `github-deployer` role (AdministratorAccess for now), monthly budget 50/90/100 % to `budget_emails` (gitignored). GitHub collaborators (incl. `Kloox`) still to add |
+| access | `infra/access` | **No** | One state per env (`-backend-config=backends/<env>.hcl`; the bucket lives in that account, so the wrong `AWS_PROFILE` cannot reach it). tfstate bucket `<team>-cloudnative-<env>-tfstate`, GitHub OIDC provider, `github-deployer` role (AdministratorAccess for now), monthly budget 50/90/100 % to `budget_emails` (gitignored). GitHub collaborators (incl. `Kloox`) managed in `infra/github` |
 | foundation | `infra/foundation` | Yes | VPC, NAT, EKS, node groups, Cluster Autoscaler, ARC Helm releases, runner secret |
 | serverless | `infra/serverless` | Yes | Secrets (entries only, values set out of band), SQS, Lambdas, HTTP + WebSocket APIs, DynamoDB, buckets, CloudFront site, CloudWatch dashboards + alarms |
 
@@ -213,7 +213,7 @@ Clear: `clear-worker` bumps `meta.epoch` first; `broadcaster` pushes a `clear` m
 | Workflow | Trigger | Jobs |
 |---|---|---|
 | `ci.yml` | `pull_request` to `dev` and `main` | `terraform fmt -check -recursive`, `validate` (each stack), `plan` matrix {foundation, serverless} × {dev, prd} in the env's GitHub environment (prd legs wait for a reviewer), plan in the job summary; app lint + unit tests + build once `app/` has code |
-| `release.yml` | push tag `v*.*.*` | build function zips + frontend → apply `foundation` + `serverless` to **dev** (environment `dev`) → apply to **prd** (environment `prd`, required reviewers) → sync frontend to the env's S3 bucket + CloudFront invalidation |
+| `release.yml` | signed tag `vX.Y.Z` pushed by a `RELEASE_ACTORS` member and pointing at the tip of `main` | per env a `plan` job (plan in the run summary), then an `apply` job that re-plans and refuses to apply if the changes differ from the reviewed plan; dev then prd (prd plan and apply each wait for a reviewer, 2 approvals); stacks `foundation` → `serverless` → `monitoring` (skipped until it exists), all on `ubuntu-latest`; build function zips + frontend sync to the env's S3 bucket + CloudFront invalidation come once `app/` has code |
 | `destroy.yml` | `workflow_dispatch` (input `env`, type-to-confirm) | destroy `serverless` then `foundation` for that env |
 | `load-runners.yml` | `workflow_dispatch` (input `jobs`) | matrix of N jobs that `sleep` to force runner node scale-up (defense demo) |
 

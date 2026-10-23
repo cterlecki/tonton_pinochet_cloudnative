@@ -87,6 +87,8 @@ resource "github_actions_variable" "this" {
     AWS_REGION       = var.aws_region
     AWS_ROLE_ARN_DEV = var.deployer_role_arns["dev"]
     AWS_ROLE_ARN_PRD = var.deployer_role_arns["prd"]
+    # release.yml refuses tags pushed by anyone else
+    RELEASE_ACTORS = join(",", var.release_actors)
   }
 
   repository    = github_repository.this.name
